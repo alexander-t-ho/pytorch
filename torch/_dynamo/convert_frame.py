@@ -81,6 +81,14 @@ from torch.utils._python_dispatch import (
 from torch.utils._traceback import CapturedTraceback, format_traceback_short
 
 from . import config, decorators, exc, graph_break_hints, trace_rules
+
+# Diagnostic hooks (optional - only used if diagnostics are enabled)
+try:
+    from .diagnostics.collector import get_current_diagnostics
+    _DIAGNOSTICS_AVAILABLE = True
+except ImportError:
+    _DIAGNOSTICS_AVAILABLE = False
+    get_current_diagnostics = None
 from .bytecode_analysis import remove_dead_code, remove_pointless_jumps
 from .bytecode_transformation import (
     check_inst_exn_tab_entries_valid,
@@ -1581,6 +1589,34 @@ def _compile(
             recompile_reason = (
                 "Unable to find recompilation reasons" if not reasons else reasons[0]
             )
+            
+            # Diagnostic hook: Record recompilation if diagnostics are enabled
+            if _DIAGNOSTICS_AVAILABLE and get_current_diagnostics is not None:
+                try:
+                    diag = get_current_diagnostics()
+                    if diag is not None:
+                        # Extract function name from frame
+                        function_name = frame.f_code.co_name if frame else "unknown"
+                        
+                        # Parse guard failure from recompile_reason if present
+                        guard_failed = None
+                        if recompile_reason and "triggered by the following guard failure:" in recompile_reason:
+                            import re
+                            match = re.search(
+                                r"triggered by the following guard failure: (.+)",
+                                recompile_reason
+                            )
+                            if match:
+                                guard_failed = match.group(1)
+                        
+                        diag.record_recompilation(
+                            function_name=function_name,
+                            cause="guard_failure" if guard_failed else "unknown",
+                            guard_failed=guard_failed,
+                        )
+                except Exception:
+                    # Never crash compilation - log and continue silently
+                    logging.debug("Recompilation diagnostics failed", exc_info=True)
         # Recheck for recompilation, for when inline_inbuilt_nn_modules is set to False
         inline_inbuilt_nn_modules_candidate = False
         if not config.inline_inbuilt_nn_modules and frame:

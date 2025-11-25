@@ -78,6 +78,14 @@ from torch.utils._python_dispatch import is_traceable_wrapper_subclass
 
 from . import config, exc, logging as torchdynamo_logging, variables
 from .backends.registry import CompiledFn, CompilerFn
+
+# Diagnostic hooks (optional - only used if diagnostics are enabled)
+try:
+    from .diagnostics.collector import get_current_diagnostics
+    _DIAGNOSTICS_AVAILABLE = True
+except ImportError:
+    _DIAGNOSTICS_AVAILABLE = False
+    get_current_diagnostics = None
 from .bytecode_transformation import (
     create_binary_slice,
     create_binary_subscr,
@@ -250,6 +258,32 @@ class GraphCompileReason:
     def __post_init__(self) -> None:
         if self.graph_break:
             graph_break_reasons.append(self)
+            
+            # Diagnostic hook: Record graph break if diagnostics are enabled
+            if _DIAGNOSTICS_AVAILABLE and get_current_diagnostics is not None:
+                try:
+                    diag = get_current_diagnostics()
+                    if diag is not None:
+                        # Extract location from user stack
+                        location = None
+                        if self.user_stack:
+                            frame = self.user_stack[0]
+                            location = f"{frame.filename}:{frame.lineno}"
+                        
+                        # Record graph break
+                        diag.record_graph_break(
+                            reason=self.reason,
+                            category=None,  # Will be auto-categorized
+                            location=location,
+                            metadata={
+                                "stack_depth": len(self.user_stack),
+                                "function_name": self.user_stack[0].name if self.user_stack else None,
+                            }
+                        )
+                except Exception:
+                    # Never crash compilation - log and continue silently
+                    import logging
+                    logging.debug("Diagnostics collection failed", exc_info=True)
 
 
 def _get_gen_rand_values_fn(random_calls: Any) -> Callable[[], list[Any]]:
@@ -2247,6 +2281,18 @@ class OutputGraph(OutputGraphCommon):
             )
 
             counters["stats"]["unique_graphs"] += 1
+            
+            # Diagnostic hook: Record successful graph compilation
+            if _DIAGNOSTICS_AVAILABLE and get_current_diagnostics is not None:
+                try:
+                    diag = get_current_diagnostics()
+                    if diag is not None:
+                        diag.record_graph_compiled()
+                except Exception:
+                    # Never crash compilation - log and continue silently
+                    import logging
+                    logging.debug("Graph compilation diagnostics failed", exc_info=True)
+            
             assert old_fake_mode.shape_env is not None
             if specializations := old_fake_mode.shape_env.specializations:
                 specialization_guards = []

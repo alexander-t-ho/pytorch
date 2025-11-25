@@ -8,6 +8,13 @@ import torch
 
 from . import config
 
+# Diagnostic API
+try:
+    from torch._dynamo.diagnostics import CompileDiagnostics
+except ImportError:
+    # Diagnostics may not be available in all builds
+    CompileDiagnostics = None  # type: ignore[assignment, misc]
+
 
 if TYPE_CHECKING:
     from ._cache import CacheInfo
@@ -38,6 +45,7 @@ __all__ = [
     "skip_guard_on_globals_unsafe",
     "skip_all_guards_unsafe",
     "nested_compile_region",
+    "CompileDiagnostics",
 ]
 
 
