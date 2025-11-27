@@ -56,7 +56,6 @@ class CompileReport:
     """
     function_name: str
     graph_breaks: List[GraphBreak] = field(default_factory=list)
-    recompilations: List[Dict[str, Any]] = field(default_factory=list)  # Simple recompilation tracking
     total_compilations: int = 0
     successful_compilations: int = 0
     failed_compilations: int = 0
@@ -118,31 +117,6 @@ class CompileReport:
         self.graph_breaks.append(graph_break)
         return graph_break
     
-    def add_recompilation(
-        self,
-        function_name: str,
-        cause: str,
-        guard_failed: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Add a recompilation event to this report.
-        
-        Args:
-            function_name: Name of the function that recompiled
-            cause: Reason for recompilation
-            guard_failed: Optional guard expression that failed
-            metadata: Optional additional metadata
-        """
-        recompilation_info = {
-            "function_name": function_name,
-            "cause": cause,
-            "guard_failed": guard_failed,
-            "timestamp": datetime.now().isoformat(),
-            "metadata": metadata or {},
-        }
-        self.recompilations.append(recompilation_info)
-    
     def finalize(self) -> None:
         """Mark the report as complete."""
         self.end_time = datetime.now()
@@ -171,7 +145,6 @@ class CompileReport:
                 }
                 for gb in self.graph_breaks
             ],
-            "recompilations": self.recompilations,
             "metadata": self.metadata,
         }
     

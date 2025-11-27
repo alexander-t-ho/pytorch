@@ -126,42 +126,6 @@ class CompileDiagnostics:
             self._report.successful_compilations += 1
         else:
             self._report.failed_compilations += 1
-    
-    def record_recompilation(
-        self,
-        function_name: str,
-        cause: str,
-        guard_failed: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Record a recompilation event.
-        
-        Args:
-            function_name: Name of the function that recompiled
-            cause: Reason for recompilation
-            guard_failed: Optional guard expression that failed
-            metadata: Optional additional metadata
-        """
-        if not self.enable or self._report is None:
-            return
-        
-        self._report.add_recompilation(
-            function_name=function_name,
-            cause=cause,
-            guard_failed=guard_failed,
-            metadata=metadata,
-        )
-    
-    def record_graph_compiled(self) -> None:
-        """
-        Record a successful graph compilation.
-        """
-        if not self.enable or self._report is None:
-            return
-        
-        self._report.successful_compilations += 1
-        self._report.total_compilations += 1
 
 
 def get_current_diagnostics() -> Optional[CompileDiagnostics]:
